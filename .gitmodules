@@ -1,0 +1,3 @@
+[submodule "cms-docker"]
+	path = cms-docker
+	url = https://github.com/cms-sw/cms-docker
