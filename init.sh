@@ -91,6 +91,26 @@ DOCKER_PORT=7777
 
 #-------------------------------------------------------------
 
+export_enviroment(){
+    echo "#!/bin/bash" > $BUILD_DIR/env.sh
+
+    echo "
+ROOT_DIR=$ROOT_DIR
+BOOTSTRAP=$BOOTSTRAP
+RUN_IMAGE=$RUN_IMAGE
+FORCE_BUILD=$FORCE_BUILD
+CMS_DIST=\"$CMS_DIST\"
+export SCRAM_ARCH=$SCRAM_ARCH
+
+alias ll=\"ls -l\"
+
+source cmsset_default.sh
+" >> $BUILD_DIR/env.sh
+
+} 
+
+#-------------------------------------------------------------
+
 if [ -d "./cms-docker" ]; then
     cp -r ./cms-docker $ROOT_DIR
 elif [ ! -d "$ROOT_DIR/cms-docker" ]; then
@@ -100,6 +120,8 @@ elif [ ! -d "$ROOT_DIR/cms-docker" ]; then
         exit 1
     fi
 fi
+
+sudo rm -rf $ROOT_DIR/cms-docker
 
 if [[ "$(docker images -q cc7:latest 2> /dev/null)" == "" ]]; then
     echo "CC7 Docker Image already exists!"
@@ -117,7 +139,7 @@ if [ $BOOTSTRAP == 0 ]; then
     _build=0
     if [ ! -d "$BUILD_DIR/cmsdist" ]; then
         let "_build++"
-        git clone https://github.com/alja/cmsdist -b fw2 $BUILD_DIR/cmsdist
+        git clone $CMS_DIST $BUILD_DIR/cmsdist
         if [ $? != 0 ];  then
             echo "coudn't clone cms-sw/cmsdist repo!"
             exit 1
@@ -137,43 +159,50 @@ if [ $BOOTSTRAP == 0 ]; then
         echo "cms-sw/pkgtools already exists!"
     fi
 
-    if [ ! -d "$BUILD_DIR/pkgtools/data7" ]; then
-        mkdir $BUILD_DIR/pkgtools/data7
-        chmod 777 $BUILD_DIR/pkgtools/data7
-    fi
-
     if [[ $FORCE_BUILD == 1 || $_build != 0 ]]; then
-        echo "building..."
+        echo "Building..."
         sudo docker run -p $DOCKER_PORT:$DOCKER_PORT -i -t  \
         $DOCKER_VOLUMES \
-        cc7 /bin/bash -c "./pkgtools/cmsBuild -a $SCRAM_ARCH -i ./data7 -j $(nproc --all) -c ./cmsdist build fwlite; exit"
+        cc7 /bin/bash -c "./pkgtools/cmsBuild -a $SCRAM_ARCH -i ./data7 -j $(nproc --all) -c ./cmsdist build fwlite; ln -s ./data7/cmsset_default.sh ./"
+    else
+        echo "skipping build..."
     fi
 else
     if [ ! -f "$BUILD_DIR/bootstrap.sh" ]; then
         wget http://cmsrep.cern.ch/cmssw/bootstrap.sh -O $BUILD_DIR/bootstrap.sh
         sudo chmod a+x $BUILD_DIR/bootstrap.sh
+    fi
+
+    if [ ! -d "$BUILD_DIR/bootstrap" ]; then
+        echo "Bootstrapping..."
 
         sudo docker run -i -t  \
         -e DISPLAY=$DISPLAY \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
         $DOCKER_VOLUMES \
-        cc7 /bin/bash -c "./bootstrap.sh -a $SCRAM_ARCH -r cms -path ./bootstrap setup; exit"
+        cc7 /bin/bash -c "./bootstrap.sh -a $SCRAM_ARCH -r cms -path ./bootstrap setup; ln -s ./bootstrap/cmsset_default.sh ./"
+    else
+        echo "skipping bootstrap..."
     fi
 fi
 
 #-------------------------------------------------------------
 
 if [ $RUN_IMAGE == 1 ]; then
+    echo "Starting Container..."
+
+    export_enviroment
+
     if [ $BOOTSTRAP == 0 ]; then
         sudo docker run -p $DOCKER_PORT:$DOCKER_PORT -i -t  \
         $DOCKER_VOLUMES \
-        cc7 /bin/bash
+        cc7 /bin/bash --init-file env.sh
     else
         sudo docker run -i -t  \
         -e DISPLAY=$DISPLAY \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
         $DOCKER_VOLUMES \
-        cc7 /bin/bash
+        cc7 /bin/bash --init-file env.sh
     fi
 fi
 
