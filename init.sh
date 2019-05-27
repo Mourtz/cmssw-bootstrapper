@@ -92,7 +92,6 @@ DOCKER_PORT=7777
 #-------------------------------------------------------------
 
 export_enviroment(){
-    echo "#!/bin/bash" > $BUILD_DIR/env.sh
 
     echo "
 ROOT_DIR=$ROOT_DIR
@@ -105,7 +104,7 @@ export SCRAM_ARCH=$SCRAM_ARCH
 alias ll=\"ls -l\"
 
 source cmsset_default.sh
-" >> $BUILD_DIR/env.sh
+" > $BUILD_DIR/env.sh
 
 } 
 
@@ -121,17 +120,20 @@ elif [ ! -d "$ROOT_DIR/cms-docker" ]; then
     fi
 fi
 
-sudo rm -rf $ROOT_DIR/cms-docker
-
-if [[ "$(docker images -q cc7:latest 2> /dev/null)" == "" ]]; then
+if [ $(sudo docker images -q cc7:latest) != 0 ]; then
     echo "CC7 Docker Image already exists!"
+    echo "Skipping Docker build..."
 else
+    echo "Building Docker image..."
+
     sudo docker build -t cc7 $ROOT_DIR/cms-docker/cc7/
     if [ $? != 0 ]; then
         echo "couldn't build docker image!"
         exit 1
     fi
 fi
+
+sudo rm -rf $ROOT_DIR/cms-docker
 
 #-------------------------------------------------------------
 
@@ -161,7 +163,7 @@ if [ $BOOTSTRAP == 0 ]; then
 
     if [[ $FORCE_BUILD == 1 || $_build != 0 ]]; then
         echo "Building..."
-        sudo docker run -p $DOCKER_PORT:$DOCKER_PORT -i -t  \
+        sudo docker run -i -t  \
         $DOCKER_VOLUMES \
         cc7 /bin/bash -c "./pkgtools/cmsBuild -a $SCRAM_ARCH -i ./data7 -j $(nproc --all) -c ./cmsdist build fwlite; ln -s ./data7/cmsset_default.sh ./"
     else
@@ -177,12 +179,10 @@ else
         echo "Bootstrapping..."
 
         sudo docker run -i -t  \
-        -e DISPLAY=$DISPLAY \
-        -v /tmp/.X11-unix:/tmp/.X11-unix \
         $DOCKER_VOLUMES \
         cc7 /bin/bash -c "./bootstrap.sh -a $SCRAM_ARCH -r cms -path ./bootstrap setup; ln -s ./bootstrap/cmsset_default.sh ./"
     else
-        echo "skipping bootstrap..."
+        echo "Skipping bootstrap..."
     fi
 fi
 
@@ -198,9 +198,15 @@ if [ $RUN_IMAGE == 1 ]; then
         $DOCKER_VOLUMES \
         cc7 /bin/bash --init-file env.sh
     else
+        if [[ "$OSTYPE" == "linux-gnu" ]]; then
+            xhost +"local:docker@"
+        else
+            echo "Didn' add hostname."
+            echo "Check line: ${LINENO}"
+        fi
+
         sudo docker run -i -t  \
-        -e DISPLAY=$DISPLAY \
-        -v /tmp/.X11-unix:/tmp/.X11-unix \
+        -e "DISPLAY=$DISPLAY" -v="/tmp/.X11-unix:/tmp/.X11-unix:rw" --privileged \
         $DOCKER_VOLUMES \
         cc7 /bin/bash --init-file env.sh
     fi
