@@ -110,14 +110,19 @@ source cmsset_default.sh
 
 #-------------------------------------------------------------
 
-if [ -d "./cms-docker" ]; then
-    cp -r ./cms-docker $ROOT_DIR
-elif [ ! -d "$ROOT_DIR/cms-docker" ]; then
-    git clone https://github.com/cms-sw/cms-docker $ROOT_DIR/cms-docker
-    if [ $? != 0 ];  then
-        echo "coudn't clone cms-sw/cms-docker repo!"
-        exit 1
+if [ ! -d "$ROOT_DIR/cms-docker" ]; then
+    if [ -d "./cms-docker" ]; then
+        echo "Copying ./cms-docker -> $ROOT_DIR ..."
+        cp -r ./cms-docker $ROOT_DIR
+    else
+        git clone https://github.com/cms-sw/cms-docker $ROOT_DIR/cms-docker
+        if [ $? != 0 ];  then
+            echo "coudn't clone cms-sw/cms-docker repo!"
+            exit 1
+        fi
     fi
+else
+    echo "$ROOT_DIR/cms-docker already exists"
 fi
 
 if [ $(sudo docker images -q cc7:latest) != 0 ]; then
@@ -133,7 +138,8 @@ else
     fi
 fi
 
-sudo rm -rf $ROOT_DIR/cms-docker
+# keep it
+# sudo rm -rf $ROOT_DIR/cms-docker
 
 #-------------------------------------------------------------
 
