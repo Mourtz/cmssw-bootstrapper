@@ -115,7 +115,7 @@ if [ ! -d "$ROOT_DIR/cms-docker" ]; then
         echo "Copying ./cms-docker -> $ROOT_DIR ..."
         cp -r ./cms-docker $ROOT_DIR
     else
-        git clone https://github.com/cms-sw/cms-docker $ROOT_DIR/cms-docker
+        git clone https://github.com/Mourtz/cms-docker $ROOT_DIR/cms-docker
         if [ $? != 0 ];  then
             echo "coudn't clone cms-sw/cms-docker repo!"
             exit 1
